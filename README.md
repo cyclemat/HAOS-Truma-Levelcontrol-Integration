@@ -100,11 +100,17 @@ Copy `custom_components/truma_levelcontrol/` into your HA `/config/custom_compon
 directory (via the Samba share, Studio Code Server, or File editor add-on).
 Add to `configuration.yaml`:
 ```yaml
-   sensor:
-     - platform: truma_levelcontrol
-       address: "18:04:ED:49:1A:78"   # your sensor's MAC
-       name: "Gas bottle"
-       scan_interval: 300             # seconds (default 300)
+sensor:
+  - platform: truma_levelcontrol
+    address: "00:81:F9:6F:C3:27"
+    name: "Gasflasche"
+    scan_interval: 300
+
+button:
+  - platform: truma_levelcontrol
+    address: "00:81:F9:6F:C3:27"
+    name: "Gasflasche"
+
    ```
 Restart Home Assistant.
 Five sensors appear (fill level, gas amount, battery, temperature, quality).
