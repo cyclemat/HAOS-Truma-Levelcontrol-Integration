@@ -5,8 +5,11 @@ Example configuration.yaml:
     sensor:
       - platform: truma_levelcontrol
         address: "18:04:ED:49:1A:78"
-        scan_interval: 300        # optional, seconds (default 300)
+        poll_interval: 300        # optional, seconds (default 300)
         name: "Gasflasche"        # optional prefix for entity names
+
+NOTE: use `poll_interval`, NOT `scan_interval`. `scan_interval` is a reserved
+HA platform key and must not be redefined here.
 """
 
 from __future__ import annotations
@@ -24,12 +27,11 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     CONF_ADDRESS,
     CONF_NAME,
-    CONF_SCAN_INTERVAL,
     PERCENTAGE,
     UnitOfMass,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -40,11 +42,13 @@ from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .coordinator import TrumaCoordinator
 from .truma import TrumaReading
 
+CONF_POLL_INTERVAL = "poll_interval"
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_ADDRESS): cv.string,
         vol.Optional(CONF_NAME, default="Truma LevelControl"): cv.string,
-        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): cv.positive_int,
+        vol.Optional(CONF_POLL_INTERVAL, default=DEFAULT_SCAN_INTERVAL): cv.positive_int,
     }
 )
 
@@ -78,14 +82,23 @@ async def async_setup_platform(
     """Set up the Truma sensors from YAML."""
     address: str = config[CONF_ADDRESS]
     name: str = config[CONF_NAME]
-    scan_interval: int = config[CONF_SCAN_INTERVAL]
+    poll_interval: int = config[CONF_POLL_INTERVAL]
 
-    coordinator = TrumaCoordinator(hass, address, scan_interval)
-    await coordinator.async_config_entry_first_refresh()
+    store = hass.data.setdefault(DOMAIN, {})
+    coordinator = store.get(address.upper())
+    if coordinator is None:
+        coordinator = TrumaCoordinator(hass, address, poll_interval)
+        store[address.upper()] = coordinator
 
-    entities = [
+    # Do a first refresh, but DO NOT abort setup if it fails: the entities are
+    # created regardless and will go from "unavailable" to a value once the
+    # device is reachable (it sleeps/advertises only now and then).
+    await coordinator.async_refresh()
+
+    entities: list = [
         TrumaSensor(coordinator, address, name, desc) for desc in _DESCRIPTIONS
     ]
+    entities.append(TrumaLastSeenSensor(coordinator, address, name))
     async_add_entities(entities)
 
 
@@ -118,7 +131,49 @@ class TrumaSensor(CoordinatorEntity[TrumaCoordinator], SensorEntity):
         )
 
     @property
+    def available(self) -> bool:
+        # The sensor only advertises every ~18 min, so most poll cycles fail
+        # with "device disappeared". Keep the entity available as long as we
+        # have EVER got a reading - the last value stays shown until the next
+        # successful measurement replaces it. Only truly unavailable before the
+        # first-ever success.
+        return self.coordinator.data is not None
+
+    @property
     def native_value(self):
         if self.coordinator.data is None:
             return None
         return self._getter(self.coordinator.data)
+
+
+class TrumaLastSeenSensor(CoordinatorEntity[TrumaCoordinator], SensorEntity):
+    """Timestamp of the last successful measurement.
+
+    Shows up as a relative time ("3 minutes ago") in the UI, so you can always
+    tell how fresh the displayed values are. The measurement values stay on
+    their last reading between successful polls; this sensor tells you when
+    that reading was actually taken.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:clock-check-outline"
+
+    def __init__(self, coordinator: TrumaCoordinator, address: str, name_prefix: str) -> None:
+        super().__init__(coordinator)
+        self._attr_name = f"{name_prefix} Zuletzt gelesen"
+        self._attr_unique_id = f"{address.upper()}_last_seen"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, address.upper())},
+            name=name_prefix,
+            manufacturer="Truma",
+            model="LevelControl",
+        )
+
+    @property
+    def available(self) -> bool:
+        # Available as soon as we have ever read successfully.
+        return self.coordinator.last_success_time is not None
+
+    @property
+    def native_value(self):
+        return self.coordinator.last_success_time

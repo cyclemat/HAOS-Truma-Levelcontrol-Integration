@@ -1,8 +1,9 @@
 """Low-level Truma LevelControl BLE access and measurement parsing.
 
-All of this is reverse-engineered from the official app (LevelControl 2.2.1)
-and verified against real readings. Pure logic here; the Home Assistant glue
-lives in coordinator.py / sensor.py.
+Reverse-engineered from the official app (LevelControl 2.2.1) and verified
+against real readings. Connection uses bleak_retry_connector - the same
+helper Home Assistant's own BLE integrations use - so the sporadic
+connect/service-discovery timeouts of plain bleak are retried automatically.
 """
 
 from __future__ import annotations
@@ -11,8 +12,8 @@ import asyncio
 import logging
 from dataclasses import dataclass
 
-from bleak import BleakClient
 from bleak.backends.device import BLEDevice
+from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
 from .const import (
     MEASURE_WAIT_S,
@@ -77,13 +78,18 @@ def _parse(dec: bytes) -> TrumaReading:
     )
 
 
-async def async_read_measurement(device: BLEDevice | str) -> TrumaReading:
-    """Connect, trigger a fresh measurement, read and decode it.
+async def async_read_measurement(device: BLEDevice, name: str = "Truma") -> TrumaReading:
+    """Connect (with retries), trigger a fresh measurement, read and decode it.
 
-    `device` may be a BLEDevice (preferred, from HA's bluetooth helper) or a
-    MAC-address string.
+    `device` must be a BLEDevice from HA's bluetooth helper.
     """
-    async with BleakClient(device) as client:
+    client = await establish_connection(
+        BleakClientWithServiceCache,
+        device,
+        name,
+        max_attempts=4,
+    )
+    try:
         password = bytes(await client.read_gatt_char(UUID_PASSWORD))
         key = _derive_key(password)
 
@@ -104,3 +110,5 @@ async def async_read_measurement(device: BLEDevice | str) -> TrumaReading:
         reading = _parse(dec)
         _LOGGER.debug("measurement raw=%s decoded=%s", raw.hex(" "), reading)
         return reading
+    finally:
+        await client.disconnect()

@@ -7,10 +7,12 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
 
-PLATFORMS = ["sensor"]
+# Platforms are configured individually under their own YAML keys
+# (sensor:, button:). Nothing to forward here; we just ensure the
+# shared data store exists.
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up via configuration.yaml (the sensor platform does the work)."""
+    """Set up the shared data store for the integration."""
     hass.data.setdefault(DOMAIN, {})
     return True
