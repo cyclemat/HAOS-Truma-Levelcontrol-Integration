@@ -137,6 +137,6 @@ Just open-source and passion ❤️
 
 ---
 
-[![Truma LevelControl](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png)](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png)
+[![Truma LevelControl]([https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png]([https://github.com/cyclemat/HAOS-Truma-Levelcontrol-Integration/blob/main/logo.png](https://github.com/cyclemat/HAOS-Truma-Levelcontrol-Integration/blob/main/logo.png?raw=true)?raw=true))]([https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png](https://github.com/cyclemat/HAOS-Truma-Levelcontrol-Integration/blob/main/logo.png?raw=true))
 
 **Your gas. Your data. Your dashboard.**
