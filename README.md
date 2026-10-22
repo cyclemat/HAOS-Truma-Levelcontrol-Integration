@@ -1,138 +1,142 @@
-**** Testing Version *****
-PLease give feedback
+[![Truma LevelControl for Home Assistant](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/banner.png)](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/banner.png)
 
+# ⛽ Truma LevelControl for Home Assistant
 
-Truma LevelControl — BLE Readout
-Read your Truma LevelControl gas-bottle sensor over
-Bluetooth Low Energy, without the official app. Includes a standalone Python
-reader and a Home Assistant integration.
-The BLE protocol was reverse-engineered from the official Android app
-(LevelControl 2.2.1) and verified against real readings.
-> **Disclaimer.** This is an unofficial, independent project, not affiliated
-> with or endorsed by Truma. Use it with your own device, at your own risk.
-> "Truma" and "LevelControl" are trademarks of their respective owner.
----
-What it does
-Connects to the sensor, forces a fresh measurement, and reads:
-Value	Unit	Notes
-Fill level	%	0–100
-Gas amount	kg	rounded to 100 g steps by the device
-Battery	%	sensor battery
-Temperature	°C	measured at the sensor
-Quality	0–3	measurement confidence (3 = good)
-Accuracy was confirmed against the official app: temperature and battery match
-exactly, fill level and gas amount to within one 100 g step (the device reports
-grams in 100 g resolution on this characteristic).
----
-The protocol
-All custom characteristics live under the Truma service
-`22BFA601-6AFE-4CC5-B3FF-3E140BAEDEB6`.
-1. Read the password from characteristic `22BFA619-…` → 5 bytes.
-2. Derive the RC4 key by XOR-ing those 5 bytes with the ASCII string
-`"TRUMA"` (`0x54 0x52 0x55 0x4D 0x41`):
-```
-key[i] = password[i] XOR "TRUMA"[i]
-```
-3. Trigger a fresh measurement by writing single bytes to the Store-NV
-characteristic `22BFA617-…` (write without response):
-```
-write 0x03   (initialize)
-write 0x02   (trigger)
-wait ~3 s    (ultrasonic measurement)
-```
-A plain read without this step returns a stale cached value.
-4. Read and decrypt the measurement from `22BFA610-…`, then RC4-decrypt the
-bytes with the key from step 2.
-5. Parse the decrypted little-endian payload:
-```
-byte[0]      fill level in %
-byte[1..2]   grams / 100   (uint16 LE, multiply by 100)
-byte[3]      battery in %
-byte[4]      temperature in °C
-byte[6] >> 6 measurement quality (0–3)
-```
-Standard GATT Device Information service `180A` also exposes the serial number
-(`2A25`) and firmware version (`2A26`) in clear text.
----
-Repository contents
-```
-truma_read_final.py        Standalone reader (scan, pick, trigger, decode)
-truma_pick_and_read.py      Earlier interactive reader (device picker)
-truma_dump_all.py           Diagnostic: dumps every characteristic
-scan_all.py                 Diagnostic: lists all nearby BLE devices
-custom_components/
-  truma_levelcontrol/       Home Assistant integration
-```
----
-Standalone Python reader
-Requires Python 3.12 (newer versions may lack prebuilt `bleak`/`winrt` wheels
-on Windows) and the `bleak` library.
-```bash
-pip install bleak
-```
-First run scans and lets you pick the device; the MAC is saved to
-`truma_device.txt` and reused afterwards.
-```bash
-python truma_read_final.py          # read (scans + picks if none saved)
-python truma_read_final.py --pick   # choose a different device
-```
-Example output:
-```
-  Fill level : 38 %
-  Gas amount : 4.20 kg  (4200 g)
-  Battery    : 100 %
-  Temperature: 13 °C
-  Quality    : 3/3
-```
-Notes
-Close the phone app first — the sensor allows only one BLE connection.
-On Windows the device may need to be paired in Bluetooth settings before a
-connection succeeds.
-The 3 s measurement wait is a safe default; running twice back-to-back
-guarantees a fresh value.
----
-Home Assistant integration
-A YAML-configured custom integration that uses Home Assistant's own Bluetooth
-stack — so it works with the local adapter and with ESPHome Bluetooth
-proxies without any change.
-Install
-Copy `custom_components/truma_levelcontrol/` into your HA `/config/custom_components/`
-directory (via the Samba share, Studio Code Server, or File editor add-on).
-Add to `configuration.yaml`:
-```yaml
-sensor:
-  - platform: truma_levelcontrol
-    address: "00:81:F9:6F:C3:27"
-    name: "Gasflasche"
-    scan_interval: 300
+### Read your gas bottle level over Bluetooth – local, private & app-free
 
-button:
-  - platform: truma_levelcontrol
-    address: "00:81:F9:6F:C3:27"
-    name: "Gasflasche"
+![Platform: Home Assistant](https://img.shields.io/badge/Platform-Home%20Assistant-blue.svg)
+![Type: Integration](https://img.shields.io/badge/Type-Custom%20Integration-blue.svg)
+![Connection: Bluetooth LE](https://img.shields.io/badge/Connection-Bluetooth%20LE-blueviolet.svg)
+![Config: UI Discovery](https://img.shields.io/badge/Setup-Auto%20Discovery-yellow)
+![Status: Active Development](https://img.shields.io/badge/Status-Active%20Development-green.svg)
 
-   ```
-Restart Home Assistant.
-Five sensors appear (fill level, gas amount, battery, temperature, quality).
-Tuning
-`scan_interval` controls how often a measurement is taken. 300 s (5 min) is a
-sensible default; lower values wake the sensor more often and use more battery
-for little benefit, since the gas level changes slowly.
-The post-trigger wait is `MEASURE_WAIT_S` in `const.py` — increase it if
-readings look stale.
-Range / ESPHome proxy
-BLE does not travel well through the metal of a vehicle. If the HA device is
-more than a few metres from the bottle, add an ESP32 running ESPHome as an
-active (connectable) Bluetooth proxy near the gas locker. The integration
-needs no changes — all Truma logic stays in HA; the ESP32 only relays the radio.
 ---
-How it was reverse-engineered
-The app's APK (Kotlin, lightly obfuscated) was unpacked and its DEX bytecode
-disassembled to recover:
-the service and characteristic UUIDs (`TrulcBleConstants`),
-the RC4 key derivation (`PasswordUtils`, XOR with `"TRUMA"`),
-the measurement trigger sequence (`triggerMeasurement` / `initializeMeasurement`
-writing `0x02` / `0x03` to Store-NV),
-the measurement byte layout (`MeasurementData.decrypt`).
-The byte layout was then confirmed empirically by comparing decoded readings
-against the values shown in the official app at known fill levels.
+
+## 🚀 About This Integration
+
+This custom integration brings your **Truma LevelControl** gas-bottle sensor
+directly into **Home Assistant** – over Bluetooth, with no cloud and without the
+Truma phone app.
+
+The BLE protocol was reverse-engineered from the official app and verified
+against real readings. The integration connects to the sensor, triggers a fresh
+measurement and exposes everything as native sensors.
+
+> **Know how much gas is left – right on your dashboard, fully local.**
+
+It provides:
+
+- 🔹 Fill level (%) and gas amount (kg)
+- 🔹 Battery and temperature
+- 🔹 Measurement quality
+- 🔹 A "last successfully read" timestamp
+- 🔹 A button to trigger a measurement on demand
+
+---
+
+## 🎯 Why This Exists
+
+The Truma LevelControl only talks to its own phone app. If you live in a camper
+or caravan running Home Assistant, you want that gas level **in HA** – next to
+your battery, water and temperature sensors.
+
+Benefits:
+
+- 🏠 Everything runs **locally** – no Truma cloud, no app
+- 🔐 Full control over your own data
+- ♻️ Values stay shown between readings (the sensor only advertises now and then)
+- ⚡ Integrated into your existing HA ecosystem
+
+---
+
+## 📊 Sensors
+
+| Entity | Description | Unit |
+|--------|-------------|------|
+| Füllstand | Gas fill level | % |
+| Gasmenge | Gas amount | kg |
+| Batterie | Sensor battery | % |
+| Temperatur | Sensor temperature | °C |
+| Messqualität | Measurement quality | 0–3 |
+| Zuletzt gelesen | Timestamp of last successful read | — |
+
+Plus a **button** entity to trigger a fresh measurement at any time.
+
+---
+
+## 🧩 Installation
+
+### Option A — HACS (recommended)
+
+1. In HACS, add this repository as a **custom repository** (type: *Integration*).
+2. Install **Truma LevelControl**.
+3. Restart Home Assistant.
+
+### Option B — Manual
+
+1. Copy the `custom_components/truma_levelcontrol` folder into your
+   `/config/custom_components/` directory.
+2. Restart Home Assistant.
+
+### Setup
+
+Once the sensor is in range, Home Assistant **auto-discovers** it and shows a
+notification under **Settings → Devices & Services**. Click it, confirm, done.
+
+If it isn't discovered automatically, add it manually:
+**Settings → Devices & Services → Add Integration → "Truma LevelControl"**,
+then enter the sensor's Bluetooth MAC address.
+
+The measurement interval is configurable per device under **Configure**.
+
+---
+
+## 📡 Bluetooth Range & Reliability
+
+The sensor advertises only every few minutes and allows a single BLE connection
+at a time. For a reliable setup:
+
+- Keep a Bluetooth adapter **in range** of the bottle.
+- Use a solid BLE adapter – cheap combo sticks (e.g. Barrot-based) often fail to
+  connect even with a strong signal. An **RTL8761B** USB adapter or an **ESP32
+  Bluetooth proxy** near the bottle works best.
+- Close the phone app while HA is polling – only one connection is allowed.
+
+---
+
+## ⚠️ Disclaimer
+
+This project is a **community-driven, private hobby project**.
+
+- I am **not affiliated with Truma** or any related company.
+- "Truma" and "LevelControl" are trademarks of their respective owners.
+- This integration only provides **interoperability with your own device**.
+- Use at your own risk.
+
+---
+
+## ❤️ Support & Donations
+
+This integration is **free to use**.
+
+If it helps you and you'd like to support further development, you're welcome to
+leave a small donation — **completely optional**:
+
+👉 **Donate via PayPal:** [http://paypal.me/cyclemat](http://paypal.me/cyclemat)
+
+No pressure, no ads, no paywalls.
+Just open-source and passion ❤️
+
+---
+
+## 🛠️ Feedback & Contributions
+
+- Issues and suggestions are welcome
+- Feel free to open pull requests
+- Tested on additional LevelControl firmware? Let me know!
+
+---
+
+[![Truma LevelControl](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png)](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/logo.png)
+
+**Your gas. Your data. Your dashboard.**
