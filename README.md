@@ -1,4 +1,6 @@
-[![Truma LevelControl for Home Assistant](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/banner.png)](https://raw.githubusercontent.com/cyclemat/Home-Assistant-Truma-LevelControl/main/assets/banner.png)
+<p align="center">
+  <img src="banner.png" alt="Truma LevelControl" width="300">
+</p>
 
 # ⛽ Truma LevelControl for Home Assistant
 
