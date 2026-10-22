@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="banner.png" alt="Truma LevelControl" width="300">
+  <img src="banner.png" alt="Truma LevelControl" width="800">
 </p>
 
 # ⛽ Truma LevelControl for Home Assistant
