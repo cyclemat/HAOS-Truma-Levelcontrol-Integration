@@ -20,6 +20,20 @@ import homeassistant.helpers.config_validation as cv
 from .const import CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL, DOMAIN
 
 
+def _friendly_name(adv_name: str | None) -> str:
+    """Newer sensors advertise "T" + one binary byte + the bottle type (e.g. "Alugas 11kg")."""
+    if not adv_name:
+        return "Truma LevelControl"
+    raw = adv_name
+    if len(raw) >= 3 and raw[0] == "T" and not (raw[1].isascii() and raw[1].isprintable()):
+        raw = raw[2:]
+    clean = "".join(c for c in raw if c.isprintable() and c != "\ufffd").strip()
+    if not clean or clean == adv_name:
+        return adv_name if clean else "Truma LevelControl"
+    return f"Truma LevelControl ({clean})"
+
+
+
 class TrumaConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Truma LevelControl."""
 
@@ -32,12 +46,12 @@ class TrumaConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
-        """Handle a device discovered via Bluetooth (manufacturer id 0x5000)."""
+        """Handle a device discovered via Bluetooth (manufacturer id 0x5000 or service 0x0A00)."""
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
 
         self._discovered_address = discovery_info.address
-        self._discovered_name = discovery_info.name or "Truma LevelControl"
+        self._discovered_name = _friendly_name(discovery_info.name)
 
         # Show a friendly confirmation card instead of silently adding.
         self.context["title_placeholders"] = {"name": self._discovered_name}
